@@ -829,10 +829,10 @@ class Audio(ChecksMixin, AudioCommandErrorHandlersMixin):
             for attr, meta in song.__dict__.items():
                 attr, meta = str(attr), str(meta)
                 # Filter unwanted val, thumbnail gets special treatment.
-                excl = ["thumbnail", "id", "webpage_url", "local", "url"]
+                excl = ["title", "author", "name", "views", "uploader", "duration", "album"]
                 if meta is not None:
                     val = meta.strip( '(),' )
-                    if not any([m in attr for m in excl]):
+                    if any([m in attr for m in excl]):
                         embed_msg.add_field(name=attr.capitalize(), value=val, inline=True)
                     elif attr == "thumbnail":
                         embed_msg.set_thumbnail(url=val)
