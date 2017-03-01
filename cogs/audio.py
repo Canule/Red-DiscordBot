@@ -828,8 +828,8 @@ class Audio(ChecksMixin, AudioCommandErrorHandlersMixin):
             embed_msg = discord.Embed(colour=0xE4BA22)
             for attr, meta in song.__dict__.items():
                 attr, meta = str(attr), str(meta)
-                # Filter unwanted val, thumbnail gets special treatment.
-                excl = ["title", "author", "name", "views", "uploader", "duration", "album"]
+                # Filter song info.
+                excl = ["title", "author", "name," "views", "uploader", "duration", "album"]
                 if meta is not None:
                     val = meta.strip( '(),' )
                     if any([m in attr for m in excl]):
