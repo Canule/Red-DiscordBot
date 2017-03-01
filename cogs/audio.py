@@ -79,39 +79,8 @@ class AudioSettings:
     def __init__(self, *, default_folder="data/audio",
                  default_name="settings2_0.json"):
         self._path = os.path.join(default_folder, default_name)
+        
 
-
-class Song:
-    def __init__(self, **kwargs):
-        self.id = kwargs.get("id", "")
-        self.title = kwargs.get("title", "")
-        self.duration = kwargs.get("duration", 0)
-
-        self.webpage_url = kwargs.get("webpage_url", "")
-
-        self.meta_file = kwargs.get("meta_file")
-        # Only the filename, needs to get joined with download_folder to create
-        #   the actual accessible path
-
-        self.extra_data = kwargs
-
-    def __eq__(self, other):
-        return self.id == other.id
-
-    @classmethod
-    def from_ytdl(cls, extracted_info: dict):
-        # TODO: Write metadata to file here
-        meta_file = youtube_dl.compat.compat_expanduser(ytdl_opts["outtmpl"])
-        meta_file += ".meta"
-        return cls(meta_file=meta_file, **extracted_info)
-
-    def to_json(self):
-        return self.extra_data
-
-    @classmethod
-    def from_json(cls, json_data):
-        return cls(**json_data)
-    
 class AudioFileInfo:
     def __init__(self, path_file, probe_cmd=None):
         self.file = path_file
@@ -140,8 +109,66 @@ class AudioFileInfo:
             output = json.loads(ostr) # Make it json
             return output
         except Exception as e:
-            log.debug("get_audio_info(): path:{}\n{}\n{}".format(self.file, e, sp_err))
+            log.debug("AudioFileInfo(): path:{}\n{}\n{}".format(self.file, e, sp_err))
             return False
+
+
+class Song:
+    def __init__(self, **kwargs):
+        self.__dict__ = kwargs
+        self.local = kwargs.get('local', False)
+        self.webpage_url = kwargs.get('url', None)
+        if self.local and self.webpage_url is not None:
+            # Make sure ffprobe gets an absolute path.
+            work_dir = os.getcwd()
+            lt_path = os.path.normpath("data/audio/localtracks")
+            track_path = os.path.normpath(self.webpage_url)
+            f = os.path.join(work_dir, lt_path, track_path)
+
+            # Get audio file info (ffprobe)
+            local_tags = AudioFileInfo(f)
+            if not local_tags.probe:
+                raise AudioException()
+            if local_tags.title is not None:
+                self.title = local_tags.title
+            else:
+                self.title = kwargs.get('title', None)
+            self.creator = local_tags.artist
+            self.album = local_tags.album
+            self.webpage_url = None            
+            self.id = kwargs.get('id', webpage_url)
+            self.duration = float(local_tags.duration)
+        else:
+            self.title = kwargs.get('title', None)           
+            self.id = kwargs.get("id", "")
+            self.title = kwargs.get("title", "")
+            self.duration = kwargs.get("duration", 0)
+
+            self.webpage_url = kwargs.get("webpage_url", "")
+
+            self.meta_file = kwargs.get("meta_file")
+            # Only the filename, needs to get joined with download_folder to create
+            #   the actual accessible path
+
+            self.extra_data = kwargs
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+    @classmethod
+    def from_ytdl(cls, extracted_info: dict):
+        # TODO: Write metadata to file here
+        meta_file = youtube_dl.compat.compat_expanduser(ytdl_opts["outtmpl"])
+        meta_file += ".meta"
+        return cls(meta_file=meta_file, **extracted_info)
+
+    def to_json(self):
+        return self.extra_data
+
+    @classmethod
+    def from_json(cls, json_data):
+        return cls(**json_data)
+
 
 class Playlist(Song):
     def __init__(self, *, song_list=[], **kwargs):
@@ -786,6 +813,36 @@ class Audio(ChecksMixin, AudioCommandErrorHandlersMixin):
     async def _play_error(self, error, ctx):
         if isinstance(error, NoPermissions):
             await self.no_permissions(error, ctx)
+
+
+    @commands.command(pass_context=True, no_pm=True)
+    async def song(self, ctx):
+        """Info about the current song."""
+        server = ctx.message.server
+        if not self.is_playing(server):
+            await self.bot.say("I'm not playing on this server.")
+            return
+
+        song = self._get_queue_nowplaying(server)
+        if song:
+            embed_msg = discord.Embed(colour=0xE4BA22)
+            for attr, meta in song.__dict__.items():
+                attr, meta = str(attr), str(meta)
+                # Filter unwanted val, thumbnail gets special treatment.
+                excl = ["thumbnail", "id", "webpage_url", "local", "url"]
+                if meta is not None:
+                    val = meta.strip( '(),' )
+                    if not any([m in attr for m in excl]):
+                        embed_msg.add_field(name=attr.capitalize(), value=val, inline=True)
+                    elif attr == "thumbnail":
+                        embed_msg.set_thumbnail(url=val)
+            embed_msg.set_footer()
+            await self.bot.say(embed=embed_msg)
+        else:
+            embed_msg = discord.Embed(colour=0xFF0000)
+            embed_msg.add_field(name="Darude", value="Sandstorm", inline=True)
+            embed_msg.set_footer(text="Error")
+            await self.bot.say(embed=embed_msg)
 
 
 def import_checks():
