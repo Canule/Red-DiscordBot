@@ -80,7 +80,69 @@ class AudioSettings:
                  default_name="settings2_0.json"):
         self._path = os.path.join(default_folder, default_name)
 
+        class Song:
+    def __init__(self, **kwargs):
+        self.__dict__ = kwargs
+        self.local = kwargs.pop('local', False)
+        self.url = kwargs.pop('url', None)
+        if self.local and self.url is not None:
+            # Make sure ffprobe gets an absolute path.
+            work_dir = os.getcwd()
+            lt_path = os.path.normpath("data/audio/localtracks")
+            track_path = os.path.normpath(self.url)
+            f = os.path.join(work_dir, lt_path, track_path)
 
+            # Get audio file info (ffprobe)
+            local_tags = AudioFileInfo(f)
+            if not local_tags.probe:
+                raise InvalidSong()
+            if local_tags.title is not None:
+                self.title = local_tags.title
+            else:
+                self.title = kwargs.pop('title', None)
+            self.creator = local_tags.artist
+            self.album = local_tags.album
+            self.webpage_url = None            
+            self.id = kwargs.pop('id', url)
+            self.duration = float(local_tags.duration)
+        else:
+            self.title = kwargs.pop('title', None)
+            self.album = kwargs.pop('album', None)
+            self.id = kwargs.pop('id', None)
+            self.webpage_url = kwargs.pop('webpage_url', "")
+            self.duration = kwargs.pop('duration', 0)
+
+class AudioFileInfo:
+    def __init__(self, path_file, probe_cmd=None):
+        self.file = path_file
+        if probe_cmd is None:
+            self.cmd_payload = ["ffprobe", "-v", "fatal", "-print_format", "json", "-show_format", self.file]
+        else:
+            self.cmd_payload = probe_cmd
+        self.probe = self.ffprobe_audiofile()
+        self.format = self.probe.get("format", None)
+        
+        self.filename = self.format.get("filename", None)
+        self.duration = self.format.get("duration", 0)
+        self.size = self.format.get("size", None)
+        self.tags = self.format.get("tags", None)
+        
+        self.title = self.tags.get("title", None)
+        self.artist = self.tags.get("artist", None)
+        self.album = self.tags.get("album", None)
+
+    def ffprobe_audiofile(self):
+        sp_err = "-"
+        try:
+            p = subprocess.Popen(self.cmd_payload, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+            out, sp_err =  p.communicate()
+            ostr = out.decode("utf-8") # str of json
+            output = json.loads(ostr) # Make it json
+            return output
+        except Exception as e:
+            log.debug("get_audio_info(): path:{}\n{}\n{}".format(self.file, e, sp_err))
+            return False
+        
 class Song:
     def __init__(self, **kwargs):
         self.id = kwargs.get("id", "")
