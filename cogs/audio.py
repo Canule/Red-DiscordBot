@@ -143,13 +143,10 @@ class Song:
             self.id = kwargs.get("id", "")
             self.title = kwargs.get("title", "")
             self.duration = kwargs.get("duration", 0)
-
             self.webpage_url = kwargs.get("webpage_url", "")
-
             self.meta_file = kwargs.get("meta_file")
             # Only the filename, needs to get joined with download_folder to create
             #   the actual accessible path
-
             self.extra_data = kwargs
 
     def __eq__(self, other):
